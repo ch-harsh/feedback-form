@@ -1,4 +1,10 @@
+import { useState } from "react";
+
 export default function Home() {
+  const [submitting, setSubmitting] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
   return (
     <div className="page">
       <main className="card">
@@ -9,13 +15,44 @@ export default function Home() {
 
         <form
           className="form"
-          onSubmit={(e: React.FormEvent<HTMLFormElement>) => {
+          onSubmit={async (e: React.FormEvent<HTMLFormElement>) => {
             e.preventDefault();
+            setSubmitting(true);
+            setMessage(null);
+            setError(null);
+
             const form = e.currentTarget;
             const data = new FormData(form);
-            const name = data.get("name") as string | null;
-            alert(`Thank you, ${name || "customer"}! Your feedback was sent.`);
-            form.reset();
+
+            const payload = {
+              name: data.get("name") as string,
+              email: data.get("email") as string,
+              phone: data.get("phone") as string,
+            };
+
+            try {
+              const res = await fetch("/api/feedback", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify(payload),
+              });
+
+              if (!res.ok) {
+                const body = (await res.json().catch(() => null)) as
+                  | { message?: string }
+                  | null;
+                throw new Error(body?.message || "Failed to submit feedback");
+              }
+
+              setMessage("Thank you! Your feedback was saved.");
+              form.reset();
+            } catch (err: any) {
+              setError(err.message || "Something went wrong. Please try again.");
+            } finally {
+              setSubmitting(false);
+            }
           }}
         >
           <div className="field">
@@ -51,10 +88,13 @@ export default function Home() {
             />
           </div>
 
-          <button type="submit" className="button">
-            Submit feedback
+          <button type="submit" className="button" disabled={submitting}>
+            {submitting ? "Submitting..." : "Submit feedback"}
           </button>
         </form>
+
+        {message && <p className="status status--success">{message}</p>}
+        {error && <p className="status status--error">{error}</p>}
       </main>
     </div>
   );
